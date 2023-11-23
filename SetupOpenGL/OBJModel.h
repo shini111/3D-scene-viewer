@@ -5,6 +5,7 @@
 
 class OBJModel
 {
+
 public:
 	OBJModel();
 	~OBJModel();
@@ -20,7 +21,7 @@ private:
 
 	void LoadMaterialFile(const char* fileName);
 	bool StartWith(std::string& line, const char* text);
-	void AddVertexData(int vIdx, int nIdx, const char* mtl, 
+	void AddVertexData(int vIdx, int nIdx, const char* mtl,
 		std::vector<Position>& vertices, std::vector<Normal>& normals);
 
 	std::map<std::string, Color> mMaterialMap;
