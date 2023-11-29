@@ -171,6 +171,10 @@ int main(int argc, char **argv)
 
 	glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
+	std::cout << "Number of vertices: " << vertices.size() << std::endl;
+	std::cout << "Number of normals: " << normals.size() << std::endl;
+	std::cout << "Number of elements: " << elements.size() << std::endl;
+
 	SDL_Init(SDL_INIT_VIDEO);
 
 	float screenWidth = 800;
@@ -210,6 +214,9 @@ int main(int argc, char **argv)
 	// 1. bind Vertex Array Object
 	glBindVertexArray(vao);
 
+	std::cout << "VBO size: " << vertices.size() * sizeof(glm::vec4) << " bytes" << std::endl;
+	std::cout << "EBO size: " << elements.size() * sizeof(GLushort) << " bytes" << std::endl;
+
 	// 2. copy our vertices array in a buffer for OpenGL to use
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
 	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec4), &vertices[0], GL_STATIC_DRAW);
@@ -221,11 +228,9 @@ int main(int argc, char **argv)
 	const char* vertexShaderSource = R"glsl(
 		#version 330 core
 
-		in vec3 position;
-		in vec3 color;
-		in vec2 texCoord;
 
-		out vec3 Color;
+		in vec4 inPosition;
+
 		out vec2 TexCoord;
 
 		uniform mat4 model;
@@ -234,9 +239,8 @@ int main(int argc, char **argv)
 
 		void main()
 		{
-			Color = color;
-			TexCoord = texCoord;
-			gl_Position = projection * view * model * vec4(position, 1.0);
+			TexCoord = inPosition.zw; 
+			gl_Position = projection * view * model * vec4(inPosition.xyz, 1.0);
 		}
 		)glsl";
 
@@ -305,7 +309,7 @@ int main(int argc, char **argv)
 	}
 
 	// 3. then set our vertex attributes pointers
-	GLint posAttrib = glGetAttribLocation(shaderProgram, "position");
+	GLint posAttrib = glGetAttribLocation(shaderProgram, "inPosition"); 
 	glEnableVertexAttribArray(posAttrib);
 	glVertexAttribPointer(posAttrib, 4, GL_FLOAT, GL_FALSE, 0, 0);
 
@@ -403,6 +407,9 @@ int main(int argc, char **argv)
 
 	float deltaTime = 0.0f;
 	float lastFrameTime = SDL_GetTicks();
+
+	std::cout << "Current frame time: " << deltaTime << " seconds" << std::endl;
+	std::cout << "Number of elements to draw: " << elements.size() << std::endl;
 
 
 	bool gameIsRunning = true;
