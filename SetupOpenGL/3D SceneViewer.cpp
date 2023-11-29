@@ -5,12 +5,20 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <vector>
+#include <fstream>
+#include <sstream>
 
-#include "OBJModel.h"
 
 glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+std::vector<glm::vec4> vertices;
+std::vector<glm::vec3> normals;
+std::vector<GLushort> elements;
+
+const char* filename = NULL;
 
 float lastX = 400, lastY = 300;
 
@@ -87,14 +95,79 @@ static void processMouse(SDL_Event ev, float deltaTime)
 	cameraFront = glm::normalize(front);
 }
 
+static void load_obj(const char* filename, std::vector<glm::vec4>& vertices, std::vector<glm::vec3>& normals, std::vector<GLushort>& elements)
+{
+
+
+	std::ifstream in(filename, std::ios::in);
+	if (!in)
+	{
+		std::cerr << "Cannot open " << filename << std::endl;
+		exit(1);
+	}
+
+	std::string line;
+	while (getline(in, line))
+	{
+		if (line.substr(0, 2) == "v ")
+		{
+			std::istringstream s(line.substr(2));
+			glm::vec4 v;
+			s >> v.x;
+			s >> v.y;
+			s >> v.z;
+			v.w = 1.0f;
+			vertices.push_back(v);
+		}
+		else if (line.substr(0, 2) == "f ")
+		{
+			std::istringstream s(line.substr(2));
+			GLushort a, b, c, ign;
+			s >> a;
+			s.ignore();
+			s >> ign;
+			s.ignore();
+			s >> ign;
+
+			s >> b;
+			s.ignore();
+			s >> ign;
+			s.ignore();
+			s >> ign;
+
+			s >> c;
+			a--;
+			b--;
+			c--;
+			elements.push_back(a);
+			elements.push_back(b);
+			elements.push_back(c);
+		}
+		/* anything else is ignored */
+	}
+
+	normals.resize(vertices.size(), glm::vec3(0.0, 0.0, 0.0));
+	for (int i = 0; i < elements.size(); i += 3)
+	{
+		GLushort ia = elements[i];
+		GLushort ib = elements[i + 1];
+		GLushort ic = elements[i + 2];
+		if (ia <= vertices.size() && ib <= vertices.size() && ic <= vertices.size())
+		{
+			glm::vec3 normal = glm::normalize(glm::cross(glm::vec3(vertices[ib]) - glm::vec3(vertices[ia]), glm::vec3(vertices[ic]) - glm::vec3(vertices[ia])));
+			normals[ia] = normals[ib] = normals[ic] = normal;
+		}
+		else
+		{
+			break;
+		}
+	}
+}
+
 int main(int argc, char **argv)
 {
-	OBJModel objModel;
-	objModel.LoadFromFile("Models/untitled.obj");
 
-	std::vector<float> vertices = objModel.GetVertexData();
-	int vertexCount = objModel.GetVertexCount();
-
+	load_obj("models/untitled.obj", vertices, normals, elements);
 
 	glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
@@ -125,69 +198,6 @@ int main(int argc, char **argv)
 		return -2;
 	}
 
-// 	float vertices[] = {
-// 
-// 		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-// 		 0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
-// 		 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-// 		 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-// 		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-// 		-0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
-// 
-// 		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-// 		 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-// 		 0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-// 		 0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-// 		-0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
-// 		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-// 
-// 		-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-// 		-0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-// 		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-// 		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-// 		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-// 		-0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-// 
-// 		 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-// 		 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-// 		 0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-// 		 0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-// 		 0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-// 		 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-// 
-// 		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-// 		 0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
-// 		 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-// 		 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
-// 		-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
-// 		-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
-// 
-// 		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
-// 		 0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
-// 		 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-// 		 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-// 		-0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
-// 		-0.5f,  0.5f, -0.5f,  0.0f, 1.0f
-// 	};
-
-	glm::vec3 cubePositions[] = {
-		glm::vec3(0.0f,  0.0f,  0.0f),
-		glm::vec3(2.0f,  5.0f, -15.0f),
-		glm::vec3(-1.5f, -2.2f, -2.5f),
-		glm::vec3(-3.8f, -2.0f, -12.3f),
-		glm::vec3(2.4f, -0.4f, -3.5f),
-		glm::vec3(-1.7f,  3.0f, -7.5f),
-		glm::vec3(1.3f, -2.0f, -2.5f),
-		glm::vec3(1.5f,  2.0f, -2.5f),
-		glm::vec3(1.5f,  0.2f, -1.5f),
-		glm::vec3(-1.3f,  1.0f, -1.5f)
-	};
-
-	unsigned int indices[] = {  // note that we start from 0!
-		0, 1, 3,   // first triangle
-		1, 2, 3    // second triangle
-	};	
-
 	GLuint vbo; // vertex buffer object
 	glGenBuffers(1, &vbo); // Generate 1 buffer
 
@@ -202,10 +212,10 @@ int main(int argc, char **argv)
 
 	// 2. copy our vertices array in a buffer for OpenGL to use
 	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, vertices.size() * sizeof(float), &vertices[0], GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec4), &vertices[0], GL_STATIC_DRAW);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, vertices.size()* sizeof(float), &vertices[0], GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, elements.size()* sizeof(GLushort), &elements[0], GL_STATIC_DRAW);
 
 
 	const char* vertexShaderSource = R"glsl(
@@ -297,7 +307,7 @@ int main(int argc, char **argv)
 	// 3. then set our vertex attributes pointers
 	GLint posAttrib = glGetAttribLocation(shaderProgram, "position");
 	glEnableVertexAttribArray(posAttrib);
-	glVertexAttribPointer(posAttrib, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glVertexAttribPointer(posAttrib, 4, GL_FLOAT, GL_FALSE, 0, 0);
 
 
 	GLint texCoordAttrib = glGetAttribLocation(shaderProgram, "texCoord");
@@ -319,18 +329,18 @@ int main(int argc, char **argv)
 
 	stbi_set_flip_vertically_on_load(true);
 
-	int width, height, nrChannels;
-	unsigned char* data = stbi_load("container.jpg", &width, &height, &nrChannels, 0);
-	if (data)
-	{
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-	}
-	else
-	{
-		std::cout << "Failed to load texture" << std::endl;
-	}
-	stbi_image_free(data);
+//	int width, height, nrChannels;
+// 	unsigned char* data = stbi_load("container.jpg", &width, &height, &nrChannels, 0);
+// 	if (data)
+// 	{
+// 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+// 		glGenerateMipmap(GL_TEXTURE_2D);
+// 	}
+// 	else
+// 	{
+// 		std::cout << "Failed to load texture" << std::endl;
+// 	}
+// 	stbi_image_free(data);
 
 
 	GLuint texture2;
@@ -347,17 +357,17 @@ int main(int argc, char **argv)
 
 
 
-	data = stbi_load("awesomeface.png", &width, &height, &nrChannels, 0);
-	if (data)
-	{
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
-	}
-	else
-	{
-		std::cout << "Failed to load texture" << std::endl;
-	}
-	stbi_image_free(data);
+// 	data = stbi_load("awesomeface.png", &width, &height, &nrChannels, 0);
+// 	if (data)
+// 	{
+// 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+// 		glGenerateMipmap(GL_TEXTURE_2D);
+// 	}
+// 	else
+// 	{
+// 		std::cout << "Failed to load texture" << std::endl;
+// 	}
+// 	stbi_image_free(data);
 	
 	glUseProgram(shaderProgram);
 	
@@ -368,7 +378,7 @@ int main(int argc, char **argv)
 	textureLocation2 = glGetUniformLocation(shaderProgram, "ourTexture2");
 	
 	glUniform1i(textureLocation, 0);
-	glUniform1i(textureLocation, 1);
+	glUniform1i(textureLocation2, 1);
 
 
 	glm::mat4 model(1.0f);
@@ -439,16 +449,7 @@ int main(int argc, char **argv)
 		glActiveTexture(GL_TEXTURE1);
 		glBindTexture(GL_TEXTURE_2D, texture2);
 
-		for (unsigned int i = 0; i < 10; i++)
-		{
-			glm::mat4 model(1.0f);
-			model = glm::translate(model, cubePositions[i]);
-			float angle = 20.0f * i;
-			model = glm::rotate(model, time, glm::vec3(1.0f, 0.3f, 0.5f));
-			glUniformMatrix4fv(modelLocation, 1, GL_FALSE, glm::value_ptr(model));
-
-			glDrawArrays(GL_TRIANGLES, 0, vertexCount);
-		}
+		glDrawElements(GL_TRIANGLES, elements.size(), GL_UNSIGNED_SHORT, 0);
 
 		SDL_GL_SwapWindow(window);
 	}
@@ -458,3 +459,4 @@ int main(int argc, char **argv)
 	SDL_Quit();
 	return 0;
 }
+
