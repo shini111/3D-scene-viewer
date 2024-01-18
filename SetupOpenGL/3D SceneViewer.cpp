@@ -14,9 +14,11 @@ glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 3.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -1.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
 
+
 std::vector<glm::vec4> vertices;
 std::vector<glm::vec3> normals;
 std::vector<GLushort> elements;
+std::vector<glm::vec2> texCoords;
 
 const char* filename = NULL;
 
@@ -95,7 +97,7 @@ static void processMouse(SDL_Event ev, float deltaTime)
 	cameraFront = glm::normalize(front);
 }
 
-static void load_obj(const char* filename, std::vector<glm::vec4>& vertices, std::vector<glm::vec3>& normals, std::vector<GLushort>& elements)
+static void load_obj(const char* filename, std::vector<glm::vec4>& vertices, std::vector<glm::vec3>& normals, std::vector<GLushort>& elements, std::vector<glm::vec2>& texCoords)
 {
 
 
@@ -143,6 +145,14 @@ static void load_obj(const char* filename, std::vector<glm::vec4>& vertices, std
 			elements.push_back(b);
 			elements.push_back(c);
 		}
+		else if (line.substr(0, 3) == "vt ")
+		{
+			std::istringstream s(line.substr(3));
+			glm::vec2 vt;
+			s >> vt.x;
+			s >> vt.y;
+			texCoords.push_back(vt);
+		}
 		/* anything else is ignored */
 	}
 
@@ -164,10 +174,20 @@ static void load_obj(const char* filename, std::vector<glm::vec4>& vertices, std
 	}
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
 
-	load_obj("models/untitled.obj", vertices, normals, elements);
+	load_obj("models/monkey.obj", vertices, normals, elements, texCoords);
+
+	int textureWidth, textureHeight, textureChannels;
+	unsigned char* textureData = stbi_load("models/brick.jpg", &textureWidth, &textureHeight, &textureChannels, 0);
+
+	if (!textureData)
+	{
+		std::cerr << "Failed to load texture image." << std::endl;
+		return -1;
+	}
+
 
 	glm::mat4 view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 
@@ -206,10 +226,11 @@ int main(int argc, char **argv)
 	glGenBuffers(1, &vbo); // Generate 1 buffer
 
 	GLuint ebo;
-	glGenBuffers(1, &ebo);	
+	glGenBuffers(1, &ebo);
 
 	GLuint vao;
 	glGenVertexArrays(1, &vao);
+
 
 	// 1. bind Vertex Array Object
 	glBindVertexArray(vao);
@@ -222,7 +243,9 @@ int main(int argc, char **argv)
 	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(glm::vec4), &vertices[0], GL_STATIC_DRAW);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, elements.size()* sizeof(GLushort), &elements[0], GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, elements.size() * sizeof(GLushort), &elements[0], GL_STATIC_DRAW);
+
+
 
 
 	const char* vertexShaderSource = R"glsl(
@@ -230,8 +253,9 @@ int main(int argc, char **argv)
 
 
 		in vec4 inPosition;
+		in vec2 TexCoord;
 
-		out vec2 TexCoord;
+		out vec2 v_TexCoord;
 
 		uniform mat4 model;
 		uniform mat4 view;
@@ -239,7 +263,7 @@ int main(int argc, char **argv)
 
 		void main()
 		{
-			TexCoord = inPosition.zw; 
+			FragTexCoord = v_TexCoord; 
 			gl_Position = projection * view * model * vec4(inPosition.xyz, 1.0);
 		}
 		)glsl";
@@ -254,7 +278,7 @@ int main(int argc, char **argv)
 	GLint  success;
 	char infoLog[512];
 	glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
-	
+
 	if (!success)
 	{
 		glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
@@ -265,25 +289,22 @@ int main(int argc, char **argv)
 
 	const char* fragmentShaderSource = R"glsl(
 		#version 330 core
-		in vec3 Color;
+
 		in vec2 TexCoord;
 
 		out vec4 outColor;
 
 		uniform sampler2D ourTexture;
-		uniform sampler2D ourTexture2;
 
 		void main()
 		{
-			vec4 colTex1 = texture(ourTexture, TexCoord);
-			vec4 colTex2 = texture(ourTexture2, TexCoord);
-			outColor = mix(colTex1, colTex2, 0.5);
+			outColor = texture(ourTexture, TexCoord);
 		})glsl";
 
 	GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
 	glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
 	glCompileShader(fragmentShader);
-	
+
 	glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
 
 	if (!success)
@@ -309,16 +330,26 @@ int main(int argc, char **argv)
 	}
 
 	// 3. then set our vertex attributes pointers
-	GLint posAttrib = glGetAttribLocation(shaderProgram, "inPosition"); 
+	GLint posAttrib = glGetAttribLocation(shaderProgram, "inPosition");
 	glEnableVertexAttribArray(posAttrib);
 	glVertexAttribPointer(posAttrib, 4, GL_FLOAT, GL_FALSE, 0, 0);
 
 
-	GLint texCoordAttrib = glGetAttribLocation(shaderProgram, "texCoord");
-	glEnableVertexAttribArray(texCoordAttrib);
-	glVertexAttribPointer(texCoordAttrib, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+	if (texCoords.size() != 0)
+	{
+		GLuint texCoordVBO;
+		glGenBuffers(1, &texCoordVBO);
+		glBindBuffer(GL_ARRAY_BUFFER, texCoordVBO);
+		glBufferData(GL_ARRAY_BUFFER, texCoords.size() * sizeof(glm::vec2), &texCoords[0], GL_STATIC_DRAW);
 
-
+		GLint texCoordAttrib = glGetAttribLocation(shaderProgram, "texCoord");
+		glEnableVertexAttribArray(texCoordAttrib);
+		glVertexAttribPointer(texCoordAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
+	}
+	else
+	{
+		std::cout << "ERROR::TEXCOORDS_IS_EQUAL_TO_0\n" << std::endl;
+	}
 
 	GLuint texture;
 	glGenTextures(1, &texture);
@@ -331,20 +362,12 @@ int main(int argc, char **argv)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	stbi_set_flip_vertically_on_load(true);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, textureData);
+	glGenerateMipmap(GL_TEXTURE_2D);
 
-//	int width, height, nrChannels;
-// 	unsigned char* data = stbi_load("container.jpg", &width, &height, &nrChannels, 0);
-// 	if (data)
-// 	{
-// 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-// 		glGenerateMipmap(GL_TEXTURE_2D);
-// 	}
-// 	else
-// 	{
-// 		std::cout << "Failed to load texture" << std::endl;
-// 	}
-// 	stbi_image_free(data);
+	stbi_image_free(textureData);
+
+	stbi_set_flip_vertically_on_load(true);
 
 
 	GLuint texture2;
@@ -359,28 +382,14 @@ int main(int argc, char **argv)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 
-
-
-// 	data = stbi_load("awesomeface.png", &width, &height, &nrChannels, 0);
-// 	if (data)
-// 	{
-// 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
-// 		glGenerateMipmap(GL_TEXTURE_2D);
-// 	}
-// 	else
-// 	{
-// 		std::cout << "Failed to load texture" << std::endl;
-// 	}
-// 	stbi_image_free(data);
-	
 	glUseProgram(shaderProgram);
-	
+
 	GLuint textureLocation;
 	GLuint textureLocation2;
 
 	textureLocation = glGetUniformLocation(shaderProgram, "ourTexture");
 	textureLocation2 = glGetUniformLocation(shaderProgram, "ourTexture2");
-	
+
 	glUniform1i(textureLocation, 0);
 	glUniform1i(textureLocation2, 1);
 
@@ -400,8 +409,6 @@ int main(int argc, char **argv)
 	glUniformMatrix4fv(projectionLocation, 1, GL_FALSE, glm::value_ptr(projection));
 
 	glClearColor(0.2f, 0.5f, 0.3f, 1.0f);
-	
-//	glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 	int start = SDL_GetTicks();
 
@@ -438,7 +445,7 @@ int main(int argc, char **argv)
 		SDL_CaptureMouse(SDL_TRUE);
 
 		float radius = 10.0f;
-	
+
 		view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
 		glUniformMatrix4fv(viewLocation, 1, GL_FALSE, glm::value_ptr(view));
 
@@ -453,8 +460,6 @@ int main(int argc, char **argv)
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, texture);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, texture2);
 
 		glDrawElements(GL_TRIANGLES, elements.size(), GL_UNSIGNED_SHORT, 0);
 
@@ -466,4 +471,3 @@ int main(int argc, char **argv)
 	SDL_Quit();
 	return 0;
 }
-
