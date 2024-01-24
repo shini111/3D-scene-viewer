@@ -255,7 +255,7 @@ int main(int argc, char** argv)
 		in vec4 inPosition;
 		in vec2 TexCoord;
 
-		out vec2 v_TexCoord;
+		out vec2 FragTexCoord;
 
 		uniform mat4 model;
 		uniform mat4 view;
@@ -263,7 +263,6 @@ int main(int argc, char** argv)
 
 		void main()
 		{
-			FragTexCoord = v_TexCoord; 
 			gl_Position = projection * view * model * vec4(inPosition.xyz, 1.0);
 		}
 		)glsl";
@@ -290,7 +289,7 @@ int main(int argc, char** argv)
 	const char* fragmentShaderSource = R"glsl(
 		#version 330 core
 
-		in vec2 TexCoord;
+		in vec2 FragTexCoord;
 
 		out vec4 outColor;
 
@@ -298,7 +297,7 @@ int main(int argc, char** argv)
 
 		void main()
 		{
-			outColor = texture(ourTexture, TexCoord);
+			outColor = texture(ourTexture, FragTexCoord);
 		})glsl";
 
 	GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -342,7 +341,7 @@ int main(int argc, char** argv)
 		glBindBuffer(GL_ARRAY_BUFFER, texCoordVBO);
 		glBufferData(GL_ARRAY_BUFFER, texCoords.size() * sizeof(glm::vec2), &texCoords[0], GL_STATIC_DRAW);
 
-		GLint texCoordAttrib = glGetAttribLocation(shaderProgram, "texCoord");
+		GLint texCoordAttrib = glGetAttribLocation(shaderProgram, "FragTexCoord");
 		glEnableVertexAttribArray(texCoordAttrib);
 		glVertexAttribPointer(texCoordAttrib, 2, GL_FLOAT, GL_FALSE, 0, 0);
 	}
